@@ -449,6 +449,9 @@ export default function App() {
         box-sizing: border-box !important;
         border-style: solid !important;
         border-width: 0 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: none !important;
       }
       .grid { display: grid !important; }
       .flex { display: flex !important; }
@@ -503,6 +506,40 @@ export default function App() {
       .-mt-\[2px\] { margin-top: -2px !important; }
       .overflow-auto { overflow: auto !important; }
       .max-w-full { max-width: 100% !important; }
+      
+      /* Crossword Grid specific print styles */
+      .grid.gap-0.p-8.bg-white {
+        display: grid !important;
+        background-color: #ffffff !important;
+        border: 4px solid #f1f5f9 !important;
+        border-radius: 1rem !important;
+        padding: 2rem !important;
+        margin: 0 auto !important;
+        width: fit-content !important;
+      }
+      .crossword-cell {
+        width: 44px !important;
+        height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        position: relative !important;
+        background-color: #ffffff !important;
+        border: 2px solid #bae6fd !important;
+        margin-left: -2px !important;
+        margin-top: -2px !important;
+        border-radius: 8px !important;
+        transform: none !important;
+      }
+      .bg-transparent.crossword-cell {
+        background-color: transparent !important;
+        border-color: transparent !important;
+      }
+      .crossword-cell span {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
       
       /* Colors */
       .text-sky-500 { color: #0ea5e9 !important; }
