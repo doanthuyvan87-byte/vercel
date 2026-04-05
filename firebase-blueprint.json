@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "Crossword": {
+      "title": "Crossword",
+      "description": "Stored crossword puzzle data",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "The raw text content of the crossword"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the crossword was created"
+        }
+      },
+      "required": ["content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/crosswords/{id}": {
+      "schema": "Crossword",
+      "description": "Collection of shared crossword puzzles"
+    }
+  }
+}

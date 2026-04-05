@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "doanthithuyvan1987@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isValidCrossword(data) {
+      return data.content is string && 
+             data.content.size() > 0 && 
+             data.content.size() < 10000;
+    }
+
+    match /crosswords/{id} {
+      // Allow public read for sharing
+      allow read: if true;
+      
+      // Allow public create for sharing (with validation)
+      allow create: if isValidCrossword(request.resource.data);
+      
+      // Only admin can update or delete
+      allow update, delete: if isAdmin();
+    }
+  }
+}
