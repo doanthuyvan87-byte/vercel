@@ -143,7 +143,7 @@ export default function App() {
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const crosswordData = docSnap.data();
-            if (crosswordData.content) {
+            if (crosswordData?.content) {
               setInputText(crosswordData.content);
               setTimeout(() => handleGenerate(crosswordData.content), 100);
             }
