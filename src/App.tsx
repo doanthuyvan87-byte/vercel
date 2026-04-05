@@ -66,6 +66,7 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Modal state
   const [activeWord, setActiveWord] = useState<PlacedWord | null>(null);
@@ -363,17 +364,28 @@ export default function App() {
   };
 
   const handlePrint = async () => {
+    if (isPrinting || !crossword) return;
+    setIsPrinting(true);
+    
     const element = document.getElementById('printable-area');
-    if (!element) return;
+    if (!element) {
+      setIsPrinting(false);
+      return;
+    }
 
-    // Create a clone for printing to ensure it's clean for students
+    // Create a temporary container for printing
     const printWindow = document.createElement('div');
-    printWindow.style.position = 'absolute';
-    printWindow.style.left = '-9999px';
+    printWindow.style.position = 'fixed';
+    printWindow.style.left = '0';
     printWindow.style.top = '0';
     printWindow.style.width = '800px';
+    printWindow.style.height = 'auto';
     printWindow.style.backgroundColor = 'white';
-    printWindow.style.padding = '40px';
+    printWindow.style.padding = '40px 40px 80px 40px';
+    printWindow.style.zIndex = '-1000';
+    printWindow.style.opacity = '1';
+    printWindow.style.pointerEvents = 'none';
+    printWindow.style.overflow = 'visible';
     printWindow.id = 'temp-print-area';
 
     const title = document.createElement('h1');
@@ -381,6 +393,8 @@ export default function App() {
     title.style.textAlign = 'center';
     title.style.marginBottom = '20px';
     title.style.color = '#0c4a6e';
+    title.style.fontSize = '24px';
+    title.style.fontWeight = 'bold';
     printWindow.appendChild(title);
 
     const gridClone = element.cloneNode(true) as HTMLElement;
@@ -397,29 +411,216 @@ export default function App() {
       }
     });
     
+    // Force some styles for the clone to ensure it looks good in PDF
+    gridClone.style.boxShadow = 'none';
+    gridClone.style.border = 'none';
+    gridClone.style.transform = 'none';
+    
     printWindow.appendChild(gridClone);
 
     const cluesTitle = document.createElement('h2');
     cluesTitle.innerText = 'Gợi ý:';
-    cluesTitle.style.marginTop = '30px';
+    cluesTitle.style.marginTop = '20px';
+    cluesTitle.style.fontSize = '18px';
+    cluesTitle.style.fontWeight = 'bold';
+    cluesTitle.style.borderBottom = '2px solid #e2e8f0';
+    cluesTitle.style.paddingBottom = '3px';
+    cluesTitle.style.marginBottom = '10px';
     printWindow.appendChild(cluesTitle);
 
-    const cluesList = document.querySelector('.ClueList-container')?.cloneNode(true);
-    if (cluesList) printWindow.appendChild(cluesList);
+    const cluesList = document.querySelector('.ClueList-container')?.cloneNode(true) as HTMLElement;
+    if (cluesList) {
+      cluesList.style.boxShadow = 'none';
+      cluesList.style.padding = '0';
+      printWindow.appendChild(cluesList);
+    }
+
+    // Add a "safe" style block to override oklch colors with standard hex colors
+    const safeStyle = document.createElement('style');
+    safeStyle.id = 'safe-print-style';
+    safeStyle.textContent = `
+      #temp-print-area * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+      .text-sky-500 { color: #0ea5e9 !important; }
+      .text-sky-400 { color: #38bdf8 !important; }
+      .text-amber-500 { color: #f59e0b !important; }
+      .text-slate-800 { color: #1e293b !important; }
+      .text-slate-600 { color: #475569 !important; }
+      .bg-sky-50 { background-color: #f0f9ff !important; }
+      .bg-sky-100 { background-color: #e0f2fe !important; }
+      .bg-amber-50 { background-color: #fffbeb !important; }
+      .bg-amber-100 { background-color: #fef3c7 !important; }
+      .bg-white { background-color: #ffffff !important; }
+      .border-sky-200 { border-color: #bae6fd !important; }
+      .border-sky-100 { border-color: #e0f2fe !important; }
+      .border-amber-100 { border-color: #fef3c7 !important; }
+      .border-slate-100 { border-color: #f1f5f9 !important; }
+      
+      /* Clue List specific print styles */
+      .ClueList-container { 
+        gap: 1rem !important; 
+        margin-top: 1rem !important;
+      }
+      .ClueList-container h3 { 
+        font-size: 16px !important; 
+        margin-bottom: 0.5rem !important;
+      }
+      .ClueList-container .grid { 
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important; 
+        gap: 0.5rem !important;
+      }
+      .ClueList-container .group { 
+        padding: 0.25rem !important; 
+        gap: 0.5rem !important;
+        border: none !important;
+      }
+      .ClueList-container span { 
+        width: 24px !important; 
+        height: 24px !important; 
+        font-size: 12px !important; 
+        border-radius: 6px !important;
+      }
+      .ClueList-container p { 
+        font-size: 13px !important; 
+        padding-top: 2px !important;
+      }
+      .ClueList-container .w-2.h-8 {
+        height: 20px !important;
+        width: 4px !important;
+      }
+    `;
+    printWindow.appendChild(safeStyle);
+
+    // Sanitize colors to avoid oklch errors in html2canvas
+    // Modern browsers might return oklch in getComputedStyle which html2canvas can't parse
+    const sanitizeColors = (root: HTMLElement) => {
+      const elements = root.querySelectorAll('*');
+      elements.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        const computedStyle = window.getComputedStyle(htmlEl);
+        
+        // Properties to check for oklch
+        const colorProperties = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'fill', 'stroke', 'outlineColor'];
+        
+        colorProperties.forEach(prop => {
+          const value = (computedStyle as any)[prop];
+          if (value && typeof value === 'string' && value.includes('oklch')) {
+            // Fallback logic
+            if (prop === 'backgroundColor') {
+              htmlEl.style.backgroundColor = htmlEl.classList.contains('bg-white') ? '#ffffff' : 'transparent';
+            } else if (prop === 'color' || prop === 'fill' || prop === 'stroke') {
+              htmlEl.style[prop as any] = '#1e293b'; // slate-800
+            } else {
+              htmlEl.style[prop as any] = '#e2e8f0'; // slate-200
+            }
+          }
+        });
+
+        if (computedStyle.boxShadow.includes('oklch')) {
+          htmlEl.style.boxShadow = 'none';
+        }
+        
+        // Specific overrides for common Tailwind classes that use oklch
+        if (htmlEl.classList.contains('text-sky-500')) htmlEl.style.color = '#0ea5e9';
+        if (htmlEl.classList.contains('text-sky-400')) htmlEl.style.color = '#38bdf8';
+        if (htmlEl.classList.contains('text-amber-500')) htmlEl.style.color = '#f59e0b';
+        if (htmlEl.classList.contains('bg-sky-50')) htmlEl.style.backgroundColor = '#f0f9ff';
+        if (htmlEl.classList.contains('bg-amber-50')) htmlEl.style.backgroundColor = '#fffbeb';
+        if (htmlEl.classList.contains('bg-sky-100')) htmlEl.style.backgroundColor = '#e0f2fe';
+        if (htmlEl.classList.contains('bg-amber-100')) htmlEl.style.backgroundColor = '#fef3c7';
+        if (htmlEl.classList.contains('border-sky-200')) htmlEl.style.borderColor = '#bae6fd';
+        if (htmlEl.classList.contains('border-sky-100')) htmlEl.style.borderColor = '#e0f2fe';
+        if (htmlEl.classList.contains('border-amber-100')) htmlEl.style.borderColor = '#fef3c7';
+      });
+    };
+    sanitizeColors(printWindow);
 
     document.body.appendChild(printWindow);
+    
+    // Force a reflow
+    printWindow.offsetHeight;
 
     try {
-      const canvas = await html2canvas(printWindow, { scale: 2 });
+      // Wait a bit for the browser to ensure the element is rendered
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const canvas = await html2canvas(printWindow, { 
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Instead of removing all stylesheets, we sanitize them
+          // to replace oklch with a safe color. This preserves the layout.
+          const stylesheets = clonedDoc.querySelectorAll('style');
+          stylesheets.forEach(s => {
+            if (s.id !== 'safe-print-style' && s.textContent) {
+              // Replace oklch(...) with a safe hex color (black or similar)
+              // so html2canvas doesn't crash during parsing
+              s.textContent = s.textContent.replace(/oklch\([^)]+\)/g, '#1e293b');
+            }
+          });
+
+          const clonedPrintArea = clonedDoc.getElementById('temp-print-area');
+          if (clonedPrintArea) {
+            clonedPrintArea.style.opacity = '1';
+            clonedPrintArea.style.visibility = 'visible';
+            clonedPrintArea.style.position = 'relative';
+            clonedPrintArea.style.left = '0';
+            clonedPrintArea.style.top = '0';
+            
+            // Remove any oklch from computed styles in the cloned document
+            const elements = clonedPrintArea.querySelectorAll('*');
+            elements.forEach(el => {
+              const htmlEl = el as HTMLElement;
+              // Force standard colors for print in the clone
+              if (htmlEl.classList.contains('text-sky-500')) htmlEl.style.color = '#0ea5e9';
+              if (htmlEl.classList.contains('text-sky-400')) htmlEl.style.color = '#38bdf8';
+              if (htmlEl.classList.contains('text-amber-500')) htmlEl.style.color = '#f59e0b';
+              if (htmlEl.classList.contains('text-slate-800')) htmlEl.style.color = '#1e293b';
+              if (htmlEl.classList.contains('text-slate-600')) htmlEl.style.color = '#475569';
+              if (htmlEl.classList.contains('bg-sky-50')) htmlEl.style.backgroundColor = '#f0f9ff';
+              if (htmlEl.classList.contains('bg-sky-100')) htmlEl.style.backgroundColor = '#e0f2fe';
+              if (htmlEl.classList.contains('bg-amber-50')) htmlEl.style.backgroundColor = '#fffbeb';
+              if (htmlEl.classList.contains('bg-amber-100')) htmlEl.style.backgroundColor = '#fef3c7';
+              if (htmlEl.classList.contains('bg-white')) htmlEl.style.backgroundColor = '#ffffff';
+              if (htmlEl.classList.contains('border-sky-200')) htmlEl.style.borderColor = '#bae6fd';
+              if (htmlEl.classList.contains('border-sky-100')) htmlEl.style.borderColor = '#e0f2fe';
+              if (htmlEl.classList.contains('border-amber-100')) htmlEl.style.borderColor = '#fef3c7';
+              if (htmlEl.classList.contains('border-slate-100')) htmlEl.style.borderColor = '#f1f5f9';
+              
+              // Aggressively remove box-shadow as it often uses oklch in Tailwind 4
+              htmlEl.style.boxShadow = 'none';
+            });
+          }
+        }
+      });
+      
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageHeight = pdf.internal.pageSize.getHeight();
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      if (pdfHeight > pageHeight) {
+        // Scale down to fit the page height
+        const ratio = pageHeight / pdfHeight;
+        const scaledWidth = pdfWidth * ratio;
+        const xOffset = (pdfWidth - scaledWidth) / 2;
+        pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, pageHeight);
+      } else {
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      }
+      
       pdf.save('o-chu-hoc-sinh.pdf');
+    } catch (error) {
+      console.error("Lỗi tạo PDF:", error);
+      alert("Có lỗi xảy ra khi tạo PDF. Vui lòng thử lại!");
     } finally {
       document.body.removeChild(printWindow);
+      setIsPrinting(false);
     }
   };
 
@@ -654,8 +855,13 @@ export default function App() {
                 <div className="flex items-center justify-between mb-6 pb-4 border-b-4 border-sky-50">
                   <h2 className="text-3xl font-black text-slate-800">Câu Hỏi</h2>
                   <div className="flex gap-2">
-                    <button onClick={handlePrint} className="p-3 text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-2xl transition-all" title="In PDF">
-                      <Printer size={24} />
+                    <button 
+                      onClick={handlePrint} 
+                      disabled={isPrinting}
+                      className={`p-3 rounded-2xl transition-all ${isPrinting ? 'bg-sky-50 text-sky-300' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50'}`}
+                      title="In PDF"
+                    >
+                      {isPrinting ? <Loader2 className="animate-spin" size={24} /> : <Printer size={24} />}
                     </button>
                     <button onClick={handleSave} className="p-3 text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-2xl transition-all" title="Lưu JSON">
                       <Save size={24} />
