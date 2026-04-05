@@ -39,7 +39,7 @@ const CrosswordGrid: React.FC<CrosswordGridProps> = ({ data, userGrid, revealed,
             key={`${x}-${y}`} 
             whileHover={cell ? { scale: 1.05, zIndex: 10 } : {}}
             onClick={() => handleCellClick(x, y)}
-            className={`relative flex items-center justify-center cursor-pointer transition-all duration-200 ${
+            className={`crossword-cell relative flex items-center justify-center cursor-pointer transition-all duration-200 ${
               cell 
                 ? 'bg-white hover:bg-sky-50 border-2 border-sky-200 -ml-[2px] -mt-[2px] shadow-sm rounded-lg' 
                 : 'bg-transparent'
