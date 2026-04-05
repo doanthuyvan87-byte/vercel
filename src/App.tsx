@@ -375,15 +375,16 @@ export default function App() {
 
     // Create a temporary container for printing
     const printWindow = document.createElement('div');
-    printWindow.style.position = 'fixed';
-    printWindow.style.left = '0';
+    printWindow.style.position = 'absolute';
+    printWindow.style.left = '-9999px';
     printWindow.style.top = '0';
     printWindow.style.width = '800px';
     printWindow.style.height = 'auto';
     printWindow.style.backgroundColor = 'white';
     printWindow.style.padding = '40px 40px 80px 40px';
-    printWindow.style.zIndex = '-1000';
+    printWindow.style.zIndex = '1000';
     printWindow.style.opacity = '1';
+    printWindow.style.visibility = 'visible';
     printWindow.style.pointerEvents = 'none';
     printWindow.style.overflow = 'visible';
     printWindow.id = 'temp-print-area';
@@ -439,28 +440,20 @@ export default function App() {
     const safeStyle = document.createElement('style');
     safeStyle.id = 'safe-print-style';
     safeStyle.textContent = `
+      #temp-print-area {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+      }
       #temp-print-area * {
         box-shadow: none !important;
         text-shadow: none !important;
+        box-sizing: border-box !important;
+        border-style: solid !important;
+        border-width: 0 !important;
       }
-      .text-sky-500 { color: #0ea5e9 !important; }
-      .text-sky-400 { color: #38bdf8 !important; }
-      .text-amber-500 { color: #f59e0b !important; }
-      .text-slate-800 { color: #1e293b !important; }
-      .text-slate-600 { color: #475569 !important; }
-      .bg-sky-50 { background-color: #f0f9ff !important; }
-      .bg-sky-100 { background-color: #e0f2fe !important; }
-      .bg-amber-50 { background-color: #fffbeb !important; }
-      .bg-amber-100 { background-color: #fef3c7 !important; }
-      .bg-white { background-color: #ffffff !important; }
-      .border-sky-200 { border-color: #bae6fd !important; }
-      .border-sky-100 { border-color: #e0f2fe !important; }
-      .border-amber-100 { border-color: #fef3c7 !important; }
-      .border-slate-100 { border-color: #f1f5f9 !important; }
-      
-      /* Essential layout styles for when external CSS is removed */
       .grid { display: grid !important; }
       .flex { display: flex !important; }
+      .inline-flex { display: inline-flex !important; }
+      .hidden { display: none !important; }
       .items-center { align-items: center !important; }
       .justify-center { justify-content: center !important; }
       .relative { position: relative !important; }
@@ -468,15 +461,24 @@ export default function App() {
       .top-1 { top: 0.25rem !important; }
       .left-1 { left: 0.25rem !important; }
       .gap-0 { gap: 0 !important; }
+      .gap-1 { gap: 0.25rem !important; }
       .gap-2 { gap: 0.5rem !important; }
       .gap-3 { gap: 0.75rem !important; }
+      .gap-8 { gap: 2rem !important; }
       .p-8 { padding: 2rem !important; }
       .p-3 { padding: 0.75rem !important; }
+      .m-0 { margin: 0 !important; }
+      .mb-2 { margin-bottom: 0.5rem !important; }
+      .mt-1 { margin-top: 0.25rem !important; }
+      .pt-1 { padding-top: 0.25rem !important; }
       .rounded-2xl { border-radius: 1rem !important; }
       .rounded-xl { border-radius: 0.75rem !important; }
       .rounded-lg { border-radius: 0.5rem !important; }
+      .rounded-full { border-radius: 9999px !important; }
+      .border { border-width: 1px !important; }
       .border-2 { border-width: 2px !important; }
       .border-4 { border-width: 4px !important; }
+      .border-transparent { border-color: transparent !important; }
       .font-black { font-weight: 900 !important; }
       .font-bold { font-weight: 700 !important; }
       .uppercase { text-transform: uppercase !important; }
@@ -485,17 +487,49 @@ export default function App() {
       .text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
       .text-xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
       .text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
-      .text-white { color: #ffffff !important; }
+      .text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+      .text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+      .text-\[11px\] { font-size: 11px !important; }
+      .leading-none { line-height: 1 !important; }
+      .leading-tight { line-height: 1.25 !important; }
+      .select-none { user-select: none !important; }
+      .flex-shrink-0 { flex-shrink: 0 !important; }
+      .w-full { width: 100% !important; }
       .w-10 { width: 2.5rem !important; }
       .h-10 { height: 2.5rem !important; }
       .w-2 { width: 0.5rem !important; }
       .h-8 { height: 2rem !important; }
-      .rounded-full { border-radius: 9999px !important; }
-      .flex-shrink-0 { flex-shrink: 0 !important; }
+      .-ml-\[2px\] { margin-left: -2px !important; }
+      .-mt-\[2px\] { margin-top: -2px !important; }
+      .overflow-auto { overflow: auto !important; }
+      .max-w-full { max-width: 100% !important; }
+      
+      /* Colors */
+      .text-sky-500 { color: #0ea5e9 !important; }
+      .text-sky-400 { color: #38bdf8 !important; }
+      .text-sky-600 { color: #0284c7 !important; }
+      .text-amber-500 { color: #f59e0b !important; }
+      .text-slate-800 { color: #1e293b !important; }
+      .text-slate-600 { color: #475569 !important; }
+      .text-emerald-500 { color: #10b981 !important; }
+      .text-rose-500 { color: #f43f5e !important; }
+      .text-white { color: #ffffff !important; }
+      
+      .bg-sky-50 { background-color: #f0f9ff !important; }
+      .bg-sky-100 { background-color: #e0f2fe !important; }
       .bg-sky-400 { background-color: #38bdf8 !important; }
-      .bg-amber-400 { background-color: #fbbf24 !important; }
       .bg-sky-500 { background-color: #0ea5e9 !important; }
+      .bg-amber-50 { background-color: #fffbeb !important; }
+      .bg-amber-100 { background-color: #fef3c7 !important; }
+      .bg-amber-400 { background-color: #fbbf24 !important; }
       .bg-amber-500 { background-color: #f59e0b !important; }
+      .bg-white { background-color: #ffffff !important; }
+      .bg-transparent { background-color: transparent !important; }
+      
+      .border-sky-200 { border-color: #bae6fd !important; }
+      .border-sky-100 { border-color: #e0f2fe !important; }
+      .border-amber-100 { border-color: #fef3c7 !important; }
+      .border-slate-100 { border-color: #f1f5f9 !important; }
       
       /* Clue List specific print styles */
       .ClueList-container { 
@@ -592,11 +626,16 @@ export default function App() {
         logging: false,
         onclone: (clonedDoc) => {
           // IMPORTANT: Remove all external stylesheets (link tags) to avoid oklch parsing errors in production (Vercel)
-          // In production, Tailwind CSS is often in a separate .css file that html2canvas fails to parse.
           const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
           links.forEach(l => l.remove());
 
-          // Sanitize existing style tags
+          // Ensure our safe style is in the head of the cloned document for maximum compatibility
+          const existingSafeStyle = clonedDoc.getElementById('safe-print-style');
+          if (existingSafeStyle) {
+            clonedDoc.head.appendChild(existingSafeStyle);
+          }
+
+          // Sanitize existing style tags in the clone
           const stylesheets = clonedDoc.querySelectorAll('style');
           stylesheets.forEach(s => {
             if (s.id !== 'safe-print-style' && s.textContent) {
@@ -609,30 +648,46 @@ export default function App() {
             clonedPrintArea.style.opacity = '1';
             clonedPrintArea.style.visibility = 'visible';
             clonedPrintArea.style.position = 'relative';
+            clonedPrintArea.style.display = 'block';
             clonedPrintArea.style.left = '0';
             clonedPrintArea.style.top = '0';
+            clonedPrintArea.style.zIndex = '1';
             
-            // Remove any oklch from computed styles in the cloned document
+            // Force standard colors for all elements in the clone
             const elements = clonedPrintArea.querySelectorAll('*');
             elements.forEach(el => {
               const htmlEl = el as HTMLElement;
+              
+              // Ensure grid and flex layouts are preserved
+              if (htmlEl.classList.contains('grid')) htmlEl.style.display = 'grid';
+              if (htmlEl.classList.contains('flex')) htmlEl.style.display = 'flex';
+              
               // Force standard colors for print in the clone
               if (htmlEl.classList.contains('text-sky-500')) htmlEl.style.color = '#0ea5e9';
               if (htmlEl.classList.contains('text-sky-400')) htmlEl.style.color = '#38bdf8';
+              if (htmlEl.classList.contains('text-sky-600')) htmlEl.style.color = '#0284c7';
               if (htmlEl.classList.contains('text-amber-500')) htmlEl.style.color = '#f59e0b';
               if (htmlEl.classList.contains('text-slate-800')) htmlEl.style.color = '#1e293b';
               if (htmlEl.classList.contains('text-slate-600')) htmlEl.style.color = '#475569';
+              if (htmlEl.classList.contains('text-emerald-500')) htmlEl.style.color = '#10b981';
+              if (htmlEl.classList.contains('text-rose-500')) htmlEl.style.color = '#f43f5e';
+              if (htmlEl.classList.contains('text-white')) htmlEl.style.color = '#ffffff';
+              
               if (htmlEl.classList.contains('bg-sky-50')) htmlEl.style.backgroundColor = '#f0f9ff';
               if (htmlEl.classList.contains('bg-sky-100')) htmlEl.style.backgroundColor = '#e0f2fe';
+              if (htmlEl.classList.contains('bg-sky-400')) htmlEl.style.backgroundColor = '#38bdf8';
+              if (htmlEl.classList.contains('bg-sky-500')) htmlEl.style.backgroundColor = '#0ea5e9';
               if (htmlEl.classList.contains('bg-amber-50')) htmlEl.style.backgroundColor = '#fffbeb';
               if (htmlEl.classList.contains('bg-amber-100')) htmlEl.style.backgroundColor = '#fef3c7';
+              if (htmlEl.classList.contains('bg-amber-400')) htmlEl.style.backgroundColor = '#fbbf24';
+              if (htmlEl.classList.contains('bg-amber-500')) htmlEl.style.backgroundColor = '#f59e0b';
               if (htmlEl.classList.contains('bg-white')) htmlEl.style.backgroundColor = '#ffffff';
+              
               if (htmlEl.classList.contains('border-sky-200')) htmlEl.style.borderColor = '#bae6fd';
               if (htmlEl.classList.contains('border-sky-100')) htmlEl.style.borderColor = '#e0f2fe';
               if (htmlEl.classList.contains('border-amber-100')) htmlEl.style.borderColor = '#fef3c7';
               if (htmlEl.classList.contains('border-slate-100')) htmlEl.style.borderColor = '#f1f5f9';
               
-              // Aggressively remove box-shadow as it often uses oklch in Tailwind 4
               htmlEl.style.boxShadow = 'none';
             });
           }
