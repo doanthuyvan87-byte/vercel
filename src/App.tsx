@@ -458,6 +458,45 @@ export default function App() {
       .border-amber-100 { border-color: #fef3c7 !important; }
       .border-slate-100 { border-color: #f1f5f9 !important; }
       
+      /* Essential layout styles for when external CSS is removed */
+      .grid { display: grid !important; }
+      .flex { display: flex !important; }
+      .items-center { align-items: center !important; }
+      .justify-center { justify-content: center !important; }
+      .relative { position: relative !important; }
+      .absolute { position: absolute !important; }
+      .top-1 { top: 0.25rem !important; }
+      .left-1 { left: 0.25rem !important; }
+      .gap-0 { gap: 0 !important; }
+      .gap-2 { gap: 0.5rem !important; }
+      .gap-3 { gap: 0.75rem !important; }
+      .p-8 { padding: 2rem !important; }
+      .p-3 { padding: 0.75rem !important; }
+      .rounded-2xl { border-radius: 1rem !important; }
+      .rounded-xl { border-radius: 0.75rem !important; }
+      .rounded-lg { border-radius: 0.5rem !important; }
+      .border-2 { border-width: 2px !important; }
+      .border-4 { border-width: 4px !important; }
+      .font-black { font-weight: 900 !important; }
+      .font-bold { font-weight: 700 !important; }
+      .uppercase { text-transform: uppercase !important; }
+      .tracking-wider { letter-spacing: 0.05em !important; }
+      .tracking-tighter { letter-spacing: -0.05em !important; }
+      .text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+      .text-xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
+      .text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+      .text-white { color: #ffffff !important; }
+      .w-10 { width: 2.5rem !important; }
+      .h-10 { height: 2.5rem !important; }
+      .w-2 { width: 0.5rem !important; }
+      .h-8 { height: 2rem !important; }
+      .rounded-full { border-radius: 9999px !important; }
+      .flex-shrink-0 { flex-shrink: 0 !important; }
+      .bg-sky-400 { background-color: #38bdf8 !important; }
+      .bg-amber-400 { background-color: #fbbf24 !important; }
+      .bg-sky-500 { background-color: #0ea5e9 !important; }
+      .bg-amber-500 { background-color: #f59e0b !important; }
+      
       /* Clue List specific print styles */
       .ClueList-container { 
         gap: 1rem !important; 
@@ -552,13 +591,15 @@ export default function App() {
         backgroundColor: '#ffffff',
         logging: false,
         onclone: (clonedDoc) => {
-          // Instead of removing all stylesheets, we sanitize them
-          // to replace oklch with a safe color. This preserves the layout.
+          // IMPORTANT: Remove all external stylesheets (link tags) to avoid oklch parsing errors in production (Vercel)
+          // In production, Tailwind CSS is often in a separate .css file that html2canvas fails to parse.
+          const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+          links.forEach(l => l.remove());
+
+          // Sanitize existing style tags
           const stylesheets = clonedDoc.querySelectorAll('style');
           stylesheets.forEach(s => {
             if (s.id !== 'safe-print-style' && s.textContent) {
-              // Replace oklch(...) with a safe hex color (black or similar)
-              // so html2canvas doesn't crash during parsing
               s.textContent = s.textContent.replace(/oklch\([^)]+\)/g, '#1e293b');
             }
           });
