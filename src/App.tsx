@@ -31,6 +31,8 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { GoogleGenAI, Type } from "@google/genai";
 import LZString from 'lz-string';
+import { db } from './firebase';
+import { collection, addDoc, getDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -55,6 +57,11 @@ export default function App() {
   const [isComplete, setIsComplete] = useState(false);
   const [hintCount, setHintCount] = useState(0);
 
+  // Timer/Countdown state
+  const [isCountdownMode, setIsCountdownMode] = useState(false);
+  const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
+  const [timerInput, setTimerInput] = useState("10"); // Default 10 mins
+
   // Sharing state
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
@@ -70,11 +77,22 @@ export default function App() {
     let interval: any;
     if (isGameStarted && !isComplete && !revealed) {
       interval = setInterval(() => {
-        setTime(prev => prev + 1);
+        setTime(prev => {
+          if (isCountdownMode) {
+            if (prev <= 1) {
+              clearInterval(interval);
+              setIsComplete(true);
+              alert("Hết giờ rồi! Bé hãy kiểm tra lại kết quả nhé.");
+              return 0;
+            }
+            return prev - 1;
+          }
+          return prev + 1;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isGameStarted, isComplete, revealed]);
+  }, [isGameStarted, isComplete, revealed, isCountdownMode]);
 
   const handleGenerate = useCallback((customInput?: string | any) => {
     const textToUse = (typeof customInput === 'string') ? customInput : inputText;
@@ -114,28 +132,73 @@ export default function App() {
 
   // Load from URL on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const data = params.get('data');
-    if (data) {
-      try {
-        const decoded = LZString.decompressFromEncodedURIComponent(data);
-        if (decoded) {
-          setInputText(decoded);
-          // Small delay to ensure state is updated if needed, though handleGenerate uses textToUse
-          setTimeout(() => handleGenerate(decoded), 100);
+    const loadSharedData = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const data = params.get('d') || params.get('data');
+
+      if (id) {
+        try {
+          const docRef = doc(db, 'crosswords', id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const crosswordData = docSnap.data();
+            if (crosswordData.content) {
+              setInputText(crosswordData.content);
+              setTimeout(() => handleGenerate(crosswordData.content), 100);
+            }
+          } else {
+            console.error("No such crossword!");
+          }
+        } catch (e) {
+          console.error("Error loading shared crossword from Firebase", e);
         }
-      } catch (e) {
-        console.error("Failed to decode share data", e);
+        return;
       }
-    }
+
+      if (data) {
+        try {
+          const decoded = LZString.decompressFromEncodedURIComponent(data);
+          if (decoded) {
+            setInputText(decoded);
+            setTimeout(() => handleGenerate(decoded), 100);
+          }
+        } catch (e) {
+          console.error("Failed to decode share data", e);
+        }
+      }
+    };
+
+    loadSharedData();
   }, [handleGenerate]);
 
-  const handleShare = () => {
-    const compressed = LZString.compressToEncodedURIComponent(inputText);
-    const url = `${window.location.origin}${window.location.pathname}?data=${compressed}`;
-    setShareUrl(url);
-    setIsShareModalOpen(true);
-    setCopied(false);
+  const handleShare = async () => {
+    // Clean input text
+    const cleanedInput = inputText.trim().split('\n').map(line => line.trim()).filter(line => line).join('\n');
+    
+    try {
+      // Generate a random 6-digit ID
+      const shortId = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Save to Firestore with the numeric ID
+      await setDoc(doc(db, 'crosswords', shortId), {
+        content: cleanedInput,
+        createdAt: serverTimestamp()
+      });
+
+      const url = `${window.location.origin}${window.location.pathname}?id=${shortId}`;
+      setShareUrl(url);
+      setIsShareModalOpen(true);
+      setCopied(false);
+    } catch (e) {
+      console.error("Error sharing to Firebase", e);
+      // Fallback to LZString if Firebase fails
+      const compressed = LZString.compressToEncodedURIComponent(cleanedInput);
+      const url = `${window.location.origin}${window.location.pathname}?d=${compressed}`;
+      setShareUrl(url);
+      setIsShareModalOpen(true);
+      setCopied(false);
+    }
   };
 
   const copyToClipboard = async () => {
@@ -303,15 +366,73 @@ export default function App() {
     const element = document.getElementById('printable-area');
     if (!element) return;
 
-    const canvas = await html2canvas(element);
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    // Create a clone for printing to ensure it's clean for students
+    const printWindow = document.createElement('div');
+    printWindow.style.position = 'absolute';
+    printWindow.style.left = '-9999px';
+    printWindow.style.top = '0';
+    printWindow.style.width = '800px';
+    printWindow.style.backgroundColor = 'white';
+    printWindow.style.padding = '40px';
+    printWindow.id = 'temp-print-area';
+
+    const title = document.createElement('h1');
+    title.innerText = 'BÀI TẬP Ô CHỮ';
+    title.style.textAlign = 'center';
+    title.style.marginBottom = '20px';
+    title.style.color = '#0c4a6e';
+    printWindow.appendChild(title);
+
+    const gridClone = element.cloneNode(true) as HTMLElement;
+    // Remove background pattern for cleaner print
+    const bgPattern = gridClone.querySelector('.absolute.inset-0');
+    if (bgPattern) bgPattern.remove();
     
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save('crossword-puzzle.pdf');
+    // Ensure the grid is blank for students
+    const spans = gridClone.querySelectorAll('span');
+    spans.forEach(span => {
+      // Keep the start numbers (small numbers in the corner)
+      if (!span.classList.contains('absolute')) {
+        span.innerText = '';
+      }
+    });
+    
+    printWindow.appendChild(gridClone);
+
+    const cluesTitle = document.createElement('h2');
+    cluesTitle.innerText = 'Gợi ý:';
+    cluesTitle.style.marginTop = '30px';
+    printWindow.appendChild(cluesTitle);
+
+    const cluesList = document.querySelector('.ClueList-container')?.cloneNode(true);
+    if (cluesList) printWindow.appendChild(cluesList);
+
+    document.body.appendChild(printWindow);
+
+    try {
+      const canvas = await html2canvas(printWindow, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('o-chu-hoc-sinh.pdf');
+    } finally {
+      document.body.removeChild(printWindow);
+    }
+  };
+
+  const startCountdown = () => {
+    const mins = parseInt(timerInput);
+    if (isNaN(mins) || mins <= 0) {
+      alert("Vui lòng nhập số phút hợp lệ!");
+      return;
+    }
+    setTime(mins * 60);
+    setIsCountdownMode(true);
+    setIsTimerModalOpen(false);
+    setIsGameStarted(true);
   };
 
   const handleSave = () => {
@@ -442,18 +563,28 @@ export default function App() {
                 placeholder="TỪ_KHÓA Gợi ý của bé..."
               />
               
-              <div className="flex gap-4 mt-8">
-                <button
-                  onClick={handleGenerate}
-                  className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white font-black py-5 px-6 rounded-[2rem] transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-100 neo-button text-xl"
-                >
-                  <Play size={24} /> Tạo Ô Chữ
-                </button>
-                <label className="flex-1 bg-white hover:bg-slate-50 text-slate-600 border-4 border-slate-100 font-black py-5 px-6 rounded-[2rem] transition-all flex items-center justify-center gap-2 cursor-pointer neo-button">
-                  <FileJson size={24} />
-                  <input type="file" className="hidden" onChange={handleLoad} accept=".json" />
-                </label>
-              </div>
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => {
+                      handleGenerate();
+                      setIsCountdownMode(false);
+                    }}
+                    className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white font-black py-5 px-6 rounded-[2rem] transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-100 neo-button text-xl"
+                  >
+                    <Play size={24} /> Tạo Ô Chữ
+                  </button>
+                  <button
+                    onClick={() => setIsTimerModalOpen(true)}
+                    className="flex-1 bg-amber-400 hover:bg-amber-500 text-white font-black py-5 px-6 rounded-[2rem] transition-all flex items-center justify-center gap-2 shadow-xl shadow-amber-100 neo-button"
+                    title="Chế độ đếm ngược"
+                  >
+                    <Timer size={24} />
+                  </button>
+                  <label className="flex-1 bg-white hover:bg-slate-50 text-slate-600 border-4 border-slate-100 font-black py-5 px-6 rounded-[2rem] transition-all flex items-center justify-center gap-2 cursor-pointer neo-button">
+                    <FileJson size={24} />
+                    <input type="file" className="hidden" onChange={handleLoad} accept=".json" />
+                  </label>
+                </div>
             </motion.div>
           </div>
         ) : (
@@ -490,6 +621,12 @@ export default function App() {
                 </button>
                 <button onClick={handleShare} className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-lg font-black transition-all shadow-lg shadow-indigo-100 neo-button">
                   Chia sẻ
+                </button>
+                <button onClick={handlePrint} className="bg-sky-500 hover:bg-sky-600 text-white px-8 py-3 rounded-2xl text-lg font-black transition-all shadow-lg shadow-sky-100 neo-button">
+                  In PDF
+                </button>
+                <button onClick={() => setIsTimerModalOpen(true)} className="bg-amber-400 hover:bg-amber-500 text-white px-8 py-3 rounded-2xl text-lg font-black transition-all shadow-lg shadow-amber-100 neo-button">
+                  Hẹn giờ
                 </button>
                 <button onClick={() => setIsGameStarted(false)} className="bg-white hover:bg-slate-50 text-slate-500 border-4 border-slate-100 px-8 py-3 rounded-2xl text-lg font-black transition-all neo-button">
                   Thoát
@@ -532,6 +669,71 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Timer Modal */}
+        <AnimatePresence>
+          {isTimerModalOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 40, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.9, y: 40, opacity: 0 }}
+                className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100"
+              >
+                <div className="bg-amber-500 p-6 flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
+                      <Timer className="text-white w-6 h-6" />
+                    </div>
+                    <h3 className="font-black text-white text-xl">
+                      Cài Đặt Thời Gian
+                    </h3>
+                  </div>
+                  <button 
+                    onClick={() => setIsTimerModalOpen(false)} 
+                    className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-all"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="p-10">
+                  <p className="text-slate-600 font-bold text-lg mb-6 text-center">
+                    Bé muốn thử thách trong bao nhiêu phút?
+                  </p>
+                  
+                  <div className="flex items-center justify-center gap-4 mb-8">
+                    <input
+                      type="number"
+                      value={timerInput}
+                      onChange={(e) => setTimerInput(e.target.value)}
+                      className="w-32 p-5 bg-slate-50 border-4 border-slate-100 rounded-2xl text-center text-3xl font-black text-amber-600 outline-none focus:border-amber-400"
+                      min="1"
+                    />
+                    <span className="text-2xl font-black text-slate-400">Phút</span>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <button 
+                      onClick={() => {
+                        handleGenerate();
+                        startCountdown();
+                      }}
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-black py-4 px-12 rounded-[2rem] shadow-xl shadow-amber-100 transition-all neo-button text-xl flex items-center gap-2"
+                    >
+                      <Play size={24} /> Bắt Đầu!
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Share Modal */}
         <AnimatePresence>
